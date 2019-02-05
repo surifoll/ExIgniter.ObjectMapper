@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2043
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper", "ExIgniter.ObjectMapper\ExIgniter.ObjectMapper.csproj", "{E1030ED1-2D65-4341-A3DB-60965012D1ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper.ConsoleTest", "ExIgniter.ObjectMapper.ConsoleTest\ExIgniter.ObjectMapper.ConsoleTest.csproj", "{BF6B5A71-7962-487A-997C-D553886CD223}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF6B5A71-7962-487A-997C-D553886CD223}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF6B5A71-7962-487A-997C-D553886CD223}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF6B5A71-7962-487A-997C-D553886CD223}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF6B5A71-7962-487A-997C-D553886CD223}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3CF6E903-8A8F-4303-9EB8-A5A13BC7B1CB}
+	EndGlobalSection
+EndGlobal
