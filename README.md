@@ -3,14 +3,25 @@ This  is is an intelligent, refactoring safe object mapping library that automat
 
 Features:
 
-Maps Simple Objects
-Complex Objects
-This very simple to use. Steps
+1. Maps Simple Objects
+2. Complex Objects
 
-Install ExIgniter.ObjectMapper from Nuget
+Steps To use  ExIgniter.ObjectMapper
 
-sample code: var testCustomer = new Customer() { City = "Eko", FirstName = "Suraj", LastName = "Deji", ID = 1, Order = new Order() { Name = "Benz", Quantity = 1 } };
+1. Install ExIgniter.ObjectMapper from Nuget
 
-var mappedObject = testCustomer.Map(new CustomerVm());
+2. Sample code:
+ 
+ var testCustomer = new Customer() { 
+     City = "Eko", 
+     FirstName = "Suraj", 
+     LastName = "Deji", 
+     ID = 1, 
+     Order = new Order() { Name = "Benz", Quantity = 1 } 
+ };
+ 
+ var mappedObject = testCustomer.Map(new CustomerVm());
+ ======================= 
 
-That's all.
+
+3. Enjoy
