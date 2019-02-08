@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace ExIgniter.ObjectMapper.ConsoleTest.Model
 {
     public class Customer
@@ -27,5 +29,30 @@ namespace ExIgniter.ObjectMapper.ConsoleTest.Model
     {
         public string Name { get; set; }
         public int Qty { get; set; }
+    }
+
+    public class Abc
+    {
+        public string Strings { get; set; }
+        public int IntProperty { get; set; }
+        public int IntProperty2 { get; set; }
+        public IList<Efg> SubClass { get; set; }
+    }
+    public class Efg
+    {
+        public bool BoolProperty { get; set; }
+    }
+
+
+    public class AbcVm
+    {
+        public string Strings { get; set; }
+        public int IntProperty { get; set; }
+        public int IntProperty2 { get; set; }
+        public List<EfgVm> SubClass { get; set; }
+    }
+    public class EfgVm
+    {
+        public bool BoolProperty { get; set; }
     }
 }
