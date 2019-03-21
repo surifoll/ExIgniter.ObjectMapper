@@ -29,6 +29,7 @@ namespace ExIgniter.ObjectMapper.ConsoleTest.Model
     {
         public string Name { get; set; }
         public int Qty { get; set; }
+        public IList<Efg> SubClass { get; set; }
     }
 
     public class Abc

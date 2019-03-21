@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>ExIgniter.ObjectMapper</id>
+    <version>1.0.6</version>
+    <title>ExIgniter.ObjectMapper</title>
+    <authors>Suraj Fehintola</authors>
+    <owners>Suraj</owners>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/surifoll/ExIgniter.ObjectMapper</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>$description$</description>
+    <releaseNotes>This is is an intelligent, refactoring safe object mapping library that automatically maps objects to each other event when the property names are not exactly the same.</releaseNotes>
+    <copyright>Copyright 2019</copyright>
+    <tags>ObjectMapper Object Mapper Map FastMapper ComplexMap ComplexMapper</tags>
+  </metadata>
+  <files>
+    
+    <file src="readme.txt" target="" />
+  </files>
+</package>

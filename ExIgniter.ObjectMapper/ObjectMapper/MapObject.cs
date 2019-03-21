@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Configuration;
 using System.Linq;
 using System.Reflection;
 using ExIgniter.ObjectMapper.Objects;
@@ -21,7 +22,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
             return retVal;
         }
-        private static void GetTypeOfVariable(PropertyInfo property, out bool type, out bool typeICollection)
+        public static void GetTypeOfVariable(PropertyInfo property, out bool type, out bool typeICollection)
         {
             var ns = property?.PropertyType?.FullName;
             type = ns != null && (bool)ns?.StartsWith("System");
@@ -50,7 +51,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
         }
        
         #endregion
-        public static T Map<T>(this object source, T destination)
+        public static T FasterMap<T>(this object source, T destination)
         {
             if (source == null)
                 return default(T);
@@ -89,7 +90,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                             if (selectedProperty == null) continue;
                             var instance1 = Activator.CreateInstance(selectedProperty.PropertyType);
                             var value = property.GetValue(item, null);
-                            var mappedData = value.Map(instance1 as IList);
+                            var mappedData = value.FasterMap(instance1 as IList);
                             props[destPropertName].SetValue(instance, mappedData);
                         }
                     }
@@ -129,7 +130,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         {
                             var instance = Activator.CreateInstance(selectedProperty.PropertyType);
                             var value = property.GetValue(source, null);
-                            var mappedData = value.Map(instance as IList);
+                            var mappedData = value.FasterMap(instance as IList);
                             props[destPropertName].SetValue(destination, mappedData);
                         }
                     }
@@ -142,7 +143,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
                         if (selectedProperty == null) continue;
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).Map(instance);
+                        var mappedData = property.GetValue(source, null).FasterMap(instance);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -150,7 +151,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 return destination;
             }
         }
-        public static T Map<T>(this object source, T destination, Func<T,string[]> exceptPred) where T : new()
+        public static T FasterMap<T>(this object source, T destination, Func<T,string[]> exceptPred) where T : new()
         {
             if (source == null)
                 return default(T);
@@ -191,7 +192,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                             if (selectedProperty == null) continue;
                             var instance1 = Activator.CreateInstance(selectedProperty.PropertyType);
                             var value = property.GetValue(item, null);
-                            var mappedData = value.Map(instance1 as IList);
+                            var mappedData = value.FasterMap(instance1 as IList);
                             props[destPropertName].SetValue(instance, mappedData);
                         }
                     }
@@ -233,7 +234,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         {
                             var instance = Activator.CreateInstance(selectedProperty.PropertyType);
                             var value = property.GetValue(source, null);
-                            var mappedData = value.Map(instance as IList);
+                            var mappedData = value.FasterMap(instance as IList);
                             props[destPropertName].SetValue(destination, mappedData);
                         }
                     }
@@ -246,7 +247,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
                         if (selectedProperty == null) continue;
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).Map(instance);
+                        var mappedData = property.GetValue(source, null).FasterMap(instance);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -254,7 +255,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 return destination;
             }
         }
-        public static T Map2<T>(this object source, T destination)
+        public static T Map<T>(this object source, T destination)
         {
             if (source == null)
                 return default(T);
@@ -265,21 +266,22 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 {
                     var srcTypeL = GetTypeCustom(item);
                     var srcPropertiesL = GetListPropertyInfo(srcTypeL);
-                    var destinationTypeL = GetTypeGeneric(destination);
-                    var destPropertiesL = GetListPropertyInfo(destinationTypeL);
+                    var destinationTypeR = GetTypeGeneric(destination);
+                    var destPropertiesR = GetListPropertyInfo(destinationTypeR);
 
 
-                    var instance = Activator.CreateInstance(destinationTypeL);
+                    var instance = Activator.CreateInstance(destinationTypeR);
 
                     var props1 = TypeDescriptor.GetProperties(instance.GetType());
 
                     foreach (var property in srcPropertiesL)
                     {
+                        //property.SetMethod.Attributes.
                         var isSystemType = IsSystemType(property);
                         if (isSystemType)
                         {
                             var destinationPropertName =
-                                Util.CalculateSimilarity(property.Name, destPropertiesL).FirstOrDefault()
+                                Util.CalculateSimilarity(property.Name, destPropertiesR).FirstOrDefault()
                                     ?.DestPropertName ?? throw new InvalidOperationException();
                             props1[destinationPropertName].SetValue(instance, property.GetValue(item, null));
                         }
@@ -321,7 +323,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         {
                             var instance = Activator.CreateInstance(selectedPropertyInfo.PropertyType);
                             var value = property.GetValue(source, null);
-                            var mappedData = value.Map(instance as IList);
+                            var mappedData = value.FasterMap(instance as IList);
                             props[destPropertName].SetValue(destination, mappedData);
                         }
                     }
@@ -334,7 +336,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
                         if (selectedProperty == null) continue;
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).Map(instance);
+                        var mappedData = property.GetValue(source, null).FasterMap(instance);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -343,7 +345,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
             }
            
         }
-        public static T Map2<T>(this object source, T destination, Func<T, string[]> exceptPred) where T : new()
+        public static T Map<T>(this object source, T destination, Func<T, string[]> exceptPred) where T : new()
         {
             if (source == null)
                 return default(T);
@@ -415,7 +417,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         {
                             var instance = Activator.CreateInstance(selectedPropertyInfo.PropertyType);
                             var value = property.GetValue(source, null);
-                            var mappedData = value.Map(instance as IList);
+                            var mappedData = value.FasterMap(instance as IList);
                             props[destPropertName].SetValue(destination, mappedData);
                         }
                     }
@@ -428,7 +430,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                         var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
                         if (selectedProperty == null) continue;
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).Map(instance);
+                        var mappedData = property.GetValue(source, null).FasterMap(instance);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -474,7 +476,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                     {
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
                         var value = property.GetValue(source, null);
-                        var mappedData = value.Map(instance as IList);
+                        var mappedData = value.FasterMap(instance as IList);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -538,7 +540,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                     {
                         var instance = Activator.CreateInstance(selectedProperty.PropertyType);
                         var value = property.GetValue(source, null);
-                        var mappedData = value.Map(instance as IList);
+                        var mappedData = value.FasterMap(instance as IList);
                         props[destPropertName].SetValue(destination, mappedData);
                     }
                 }
@@ -564,3 +566,5 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
         }
     }
 }
+
+
