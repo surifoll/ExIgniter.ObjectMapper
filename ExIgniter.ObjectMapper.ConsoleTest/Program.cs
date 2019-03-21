@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using AutoMapper;
 using ExIgniter.ObjectMapper.ConsoleTest.Model;
 using ExIgniter.ObjectMapper.ObjectMapper;
+using ExIgniter.ObjectMapper.Objects;
 
 namespace ExIgniter.ObjectMapper.ConsoleTest
 {
@@ -14,6 +15,25 @@ namespace ExIgniter.ObjectMapper.ConsoleTest
     {
         static void Main(string[] args)
         {
+
+
+            var object1 = new Abc
+            {
+                Strings = "String",
+                IntProperty = 1,
+                IntProperty2 = 2
+            };
+            var object2 = new Abc
+            {
+                Strings = "String",
+                IntProperty = 1,
+                SubClass = new List<Efg>() { new Efg() { BoolProperty = true } }
+            };
+
+
+            var res1 = object2.ComplexMap(new AbcVm());
+            var res2 = object2.FasterMap(new AbcVm(), vm => new[] { nameof(vm.Strings), nameof(vm.IntProperty) });
+
             Mapper.Initialize(config =>
             {
                 config.CreateMap<Customer, CustomerVm>();
@@ -23,10 +43,10 @@ namespace ExIgniter.ObjectMapper.ConsoleTest
             var testCustomer = new Customer() { City = "Eko", FirstName = "Suraj", LastName = "Deji", ID = 1, Order = new Order() { Name = "Benz", Quantity = 1 } };
 
 
-            Console.WriteLine("==========Map================");
+            Console.WriteLine("========== ExIgniter Map ================");
             Stopwatch sw = new Stopwatch();
             sw.Start();
-            var a = testCustomer.Map(new CustomerVm());
+            var a = testCustomer.FasterMap(new CustomerVm());
             sw.Stop();
             Console.WriteLine("Elapsed={0}", sw.Elapsed);
 
@@ -41,12 +61,12 @@ namespace ExIgniter.ObjectMapper.ConsoleTest
 
 
 
-            Console.WriteLine("============Map2==============");
+            // Console.WriteLine("============Map2==============");
             Stopwatch sw2 = new Stopwatch();
             sw2.Start();
-            var r = testCustomer.Map2(new CustomerVm());
+            var r = testCustomer.Map(new CustomerVm());
             sw2.Stop();
-            Console.WriteLine("Elapsed={0}", sw2.Elapsed);
+            // Console.WriteLine("Elapsed={0}", sw2.Elapsed);
 
 
             Console.WriteLine("============Manual==============");
@@ -58,19 +78,28 @@ namespace ExIgniter.ObjectMapper.ConsoleTest
                 FiName = testCustomer.FirstName,
                 LastName = testCustomer.LastName,
                 Id = testCustomer.ID
+                ,
+                OrderVm = new OrderVm() { Name = "kmimoi" }
             };
             var newList = new List<CustomerVm>()
             {
-                new CustomerVm() {Cty = "Ibadan", FiName = "Ahmed", LastName = "Tunde", Id = 1},
+                new CustomerVm() {Cty = "Ibadan", FiName = "Ahmed", LastName = "Tunde", Id = 1, OrderVm = new OrderVm(){Name = "kmimoi",
+                SubClass = new List<Efg>(){
+                new Efg
+                {
+                    BoolProperty = true
+                }}}},
                 new CustomerVm() {Cty = "Oshodi", FiName = "Sikiru", LastName = "Ruka", Id = 500},
                 new CustomerVm() {Cty = "osogbo", FiName = "John", LastName = "Buhar", Id = 3},
-                new CustomerVm() {Cty = "Kano", FiName = "Atiku", LastName = "Osibajo", Id = 4}
+                new CustomerVm() {Cty = "Kano", FiName = "Atiku", LastName = "Osibajo", Id = 4, OrderVm = new OrderVm(){Name = "kmimoi"}}
             };
             sw3.Stop();
             Console.WriteLine("Elapsed={0}", sw3.Elapsed);
+            
+            Console.WriteLine("Elapsed={0}", newList.ToPrettyString());
 
 
-            Console.WriteLine("==========Complex================");
+            Console.WriteLine("========== ExIgniter Complex ================");
             Stopwatch sw4 = new Stopwatch();
             sw4.Start();
             var res = testCustomer.ComplexMap(new CustomerVm());
