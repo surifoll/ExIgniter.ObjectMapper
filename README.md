@@ -20,9 +20,8 @@ Steps To use  ExIgniter.ObjectMapper
         LastName = "Deji",
         ID = 1,
         Order = new Order() { Name = "Benz", Quantity = 1 }
- };
-```
-```cs
+    };
+
     var mappedObject = testCustomer.Map(new CustomerVm(), vm => new[] {
             nameof(vm.PropertyA), nameof(vm.PropertyB)
         }
