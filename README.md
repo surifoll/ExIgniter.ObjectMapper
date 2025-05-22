@@ -64,10 +64,6 @@ source.ComplexMap(destination);
 * Nested classes
 * Lists and collections
 
-### ❗ Unsupported (for now)
-
-* Dictionaries
-* Custom converters (planned)
 
 ---
 
