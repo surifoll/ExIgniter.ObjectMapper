@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using ExIgniter.ObjectMapper.ObjectMapper;
-using Xunit;
 
-namespace ExIgniter.ObjectMapper.Tests
+namespace ExIgniter.ObjectMapper.UnitTest
 {
     public class MapObjectTests
     {
@@ -182,7 +179,7 @@ namespace ExIgniter.ObjectMapper.Tests
             };
             source.SelfReference = source;
 
-            var result = source.Map<ComplexTarget>();
+            var result = source.Map<ComplexTarget>(new ComplexTarget());
 
             // Test primitive mapping
             Assert.NotNull(result);

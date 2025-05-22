@@ -4,30 +4,46 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Security;
 using ExIgniter.ObjectMapper.Objects;
 
 namespace ExIgniter.ObjectMapper.ObjectMapper
 {
-    public static class MapObject
+   public static class MapObject
     {
-        private static readonly Dictionary<Type, List<PropertyInfo>> PropertyCache =
+        // Security Constants
+        private const int MaxRecursionDepth = 32;
+        private static readonly HashSet<string> BannedNamespaces = new HashSet<string>
+        {
+            "System.IO", "System.Diagnostics", "System.Reflection.Emit"
+        };
+
+        // Cache with security constraints
+        private static readonly Dictionary<Type, List<PropertyInfo>> PropertyCache = 
             new Dictionary<Type, List<PropertyInfo>>();
+
+        [AttributeUsage(AttributeTargets.Property)]
+        public class NoMapAttribute : Attribute { }
+
+        [AttributeUsage(AttributeTargets.Class)]
+        public class UnmappableAttribute : Attribute { }
 
         private static List<PropertyInfo> GetCachedProperties(Type type)
         {
+            if (type.IsDefined(typeof(UnmappableAttribute), inherit: true))
+                throw new SecurityException($"Type {type.FullName} is marked as unmappable");
+
             if (!PropertyCache.TryGetValue(type, out var props))
             {
-                props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).ToList();
+                props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(p => p.GetSetMethod() != null) // Only settable properties
+                    .Where(p => !p.IsDefined(typeof(NoMapAttribute))) // Filter NoMap properties
+                    .ToList();
+                
                 PropertyCache[type] = props;
             }
-
             return props;
         }
-
-        // private static bool IsSimpleType(Type type)
-        // {
-        //     return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime);
-        // }
 
         private static readonly HashSet<Type> PrimitiveTypes = new HashSet<Type>
         {
@@ -39,40 +55,73 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
         private static bool IsSimpleType(Type type)
         {
-            return type.IsPrimitive || PrimitiveTypes.Contains(type) || type.IsEnum;
+            if (type == null) return false;
+            if (BannedNamespaces.Any(ns => type.FullName?.StartsWith(ns) ?? false))
+                return false;
+
+            return type.IsPrimitive || 
+                   PrimitiveTypes.Contains(type) || 
+                   type.IsEnum ||
+                   Nullable.GetUnderlyingType(type) != null && IsSimpleType(Nullable.GetUnderlyingType(type));
         }
 
+        private static bool IsAllowedType(Type type)
+        {
+            if (type == null) return false;
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+                return true;
 
-        private static Dictionary<string, PropertyInfo> GetSimilarityMap(List<PropertyInfo> source,
+            // Block dangerous types
+            var dangerousTypes = new[] { typeof(Delegate), typeof(MulticastDelegate) };
+            if (dangerousTypes.Any(t => t.IsAssignableFrom(type)))
+                return false;
+
+            return !BannedNamespaces.Any(ns => type.FullName?.StartsWith(ns) ?? false);
+        }
+
+        private static Dictionary<string, PropertyInfo> GetSimilarityMap(
+            List<PropertyInfo> source, 
             List<PropertyInfo> destination)
         {
             var map = new Dictionary<string, PropertyInfo>();
             foreach (var src in source)
             {
+                if (!IsAllowedType(src.PropertyType)) continue;
+
                 var match = Util.CalculateSimilarity(src.Name, destination).FirstOrDefault();
                 if (match != null)
                 {
                     var matchedProp = destination.FirstOrDefault(d => d.Name == match.DestPropertName);
-                    if (matchedProp != null)
+                    if (matchedProp != null && IsAllowedType(matchedProp.PropertyType))
                         map[src.Name] = matchedProp;
                 }
             }
-
             return map;
         }
 
-        public static T MapTo<T>(this object source, T destination, Func<T, string[]> exclude = null) where T : new()
+        private static T MapTo<T>(this object source, T destination, Func<T, string[]> exclude = null) where T : new()
         {
-            return source.MapTo(destination, exclude, new Dictionary<object, object>());
+            return source.MapTo(destination, exclude, new Dictionary<object, object>(), currentDepth: 0);
         }
 
-        private static T MapTo<T>(this object source, T destination, Func<T, string[]> exclude,
-            Dictionary<object, object> visited) where T : new()
+        private static T MapTo<T>(
+            this object source, 
+            T destination, 
+            Func<T, string[]> exclude,
+            Dictionary<object, object> visited,
+            int currentDepth) where T : new()
         {
+            if (currentDepth > MaxRecursionDepth)
+                throw new InvalidOperationException($"Maximum recursion depth {MaxRecursionDepth} exceeded");
+
             if (source == null)
                 return default;
 
-            // Check for circular references
+            // Security: Type must be allowed
+            if (!IsAllowedType(source.GetType()) || !IsAllowedType(typeof(T)))
+                throw new SecurityException("Type mapping not allowed");
+
+            // Circular reference check
             if (visited.TryGetValue(source, out var existing))
                 return (T)existing;
 
@@ -83,18 +132,26 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
             if (source is IEnumerable sourceEnumerable && destination is IList destList)
             {
                 var elementType = destination.GetType().GetGenericArguments().FirstOrDefault();
+                if (!IsAllowedType(elementType))
+                    throw new SecurityException("Collection element type not allowed");
+
                 var destProps = GetCachedProperties(elementType);
 
                 foreach (var item in sourceEnumerable)
                 {
-                    var srcProps = GetCachedProperties(item.GetType());
-                    var similarityMap = GetSimilarityMap(srcProps, destProps);
-                    var instance = Activator.CreateInstance(elementType);
+                    if (!IsAllowedType(item?.GetType())) continue;
 
-                    MapProperties(item, instance, srcProps, destProps, similarityMap, excludeProps, visited);
-                    destList.Add(instance);
+                    if (item != null)
+                    {
+                        var srcProps = GetCachedProperties(item.GetType());
+                        var similarityMap = GetSimilarityMap(srcProps, destProps);
+                        var instance = Activator.CreateInstance(elementType);
+
+                        MapProperties(item, instance, srcProps, destProps, similarityMap, 
+                            excludeProps, visited, currentDepth + 1);
+                        destList.Add(instance);
+                    }
                 }
-
                 return destination;
             }
             else
@@ -103,7 +160,8 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 var destProps = GetCachedProperties(destination.GetType());
                 var similarityMap = GetSimilarityMap(srcProps, destProps);
 
-                MapProperties(source, destination, srcProps, destProps, similarityMap, excludeProps, visited);
+                MapProperties(source, destination, srcProps, destProps, similarityMap, 
+                            excludeProps, visited, currentDepth + 1);
                 return destination;
             }
         }
@@ -115,13 +173,17 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
             List<PropertyInfo> destProps,
             Dictionary<string, PropertyInfo> map,
             string[] exclude,
-            Dictionary<object, object> visited)
+            Dictionary<object, object> visited,
+            int currentDepth)
         {
             var destDescriptor = TypeDescriptor.GetProperties(destination);
 
             foreach (var srcProp in srcProps)
             {
-                if (exclude.Contains(srcProp.Name) || !map.TryGetValue(srcProp.Name, out var destProp))
+                if (exclude.Contains(srcProp.Name) || 
+                    !map.TryGetValue(srcProp.Name, out var destProp) ||
+                    !IsAllowedType(srcProp.PropertyType) ||
+                    !IsAllowedType(destProp.PropertyType))
                     continue;
 
                 var value = srcProp.GetValue(source);
@@ -130,20 +192,39 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
                 if (IsSimpleType(srcProp.PropertyType))
                 {
-                    destProp.SetValue(destination, value);
+                    // Validate type compatibility
+                    if (IsSafeAssignment(srcProp.PropertyType, destProp.PropertyType))
+                    {
+                        destProp.SetValue(destination, value);
+                    }
                 }
                 else if (typeof(IEnumerable).IsAssignableFrom(srcProp.PropertyType) &&
                          srcProp.PropertyType != typeof(string))
                 {
-                    HandleCollectionMapping(source, destination, srcProp, destProp, destDescriptor, visited);
+                    HandleCollectionMapping(source, destination, srcProp, destProp, 
+                                          destDescriptor, visited, currentDepth);
                 }
                 else
                 {
                     var nestedInstance = Activator.CreateInstance(destProp.PropertyType);
-                    var mapped = value.MapTo(nestedInstance, null, visited);
+                    var mapped = value.MapTo(nestedInstance, null, visited, currentDepth + 1);
                     destDescriptor[destProp.Name].SetValue(destination, mapped);
                 }
             }
+        }
+
+        private static bool IsSafeAssignment(Type sourceType, Type destType)
+        {
+            // Handle nullable types
+            sourceType = Nullable.GetUnderlyingType(sourceType) ?? sourceType;
+            destType = Nullable.GetUnderlyingType(destType) ?? destType;
+
+            // Primitive type conversions
+            if (IsSimpleType(sourceType) && IsSimpleType(destType))
+                return true;
+
+            // Custom objects must be exact type or inheritance
+            return destType.IsAssignableFrom(sourceType);
         }
 
         private static void HandleCollectionMapping(
@@ -152,27 +233,31 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
             PropertyInfo srcProp,
             PropertyInfo destProp,
             PropertyDescriptorCollection destDescriptor,
-            Dictionary<object, object> visited)
+            Dictionary<object, object> visited,
+            int currentDepth)
         {
             var sourceCollection = (IEnumerable)srcProp.GetValue(source);
             var targetType = destProp.PropertyType;
 
-            // Special handling for dictionaries
             if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
             {
-                HandleDictionaryMapping(sourceCollection, destProp, destination, destDescriptor, visited);
+                HandleDictionaryMapping(sourceCollection, destProp, destination, 
+                                      destDescriptor, visited, currentDepth);
                 return;
             }
 
             var elementType = GetCollectionElementType(targetType);
-            if (elementType == null) return;
+            if (elementType == null || !IsAllowedType(elementType)) return;
 
             var mappedItems = new List<object>();
             foreach (var item in sourceCollection)
             {
+                if (item == null || !IsAllowedType(item.GetType())) continue;
+
                 var mappedItem = IsSimpleType(elementType)
                     ? item
-                    : item.MapTo(Activator.CreateInstance(elementType), null, visited);
+                    : item.MapTo(Activator.CreateInstance(elementType), null, 
+                               visited, currentDepth + 1);
                 mappedItems.Add(mappedItem);
             }
 
@@ -182,42 +267,68 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 destDescriptor[destProp.Name].SetValue(destination, targetCollection);
             }
         }
+        
+       private static void HandleDictionaryMapping(
+    IEnumerable sourceCollection,
+    PropertyInfo destProp,
+    object destination,
+    PropertyDescriptorCollection destDescriptor,
+    Dictionary<object, object> visited,
+    int currentDepth)
+{
+    var dictType = destProp.PropertyType;
+    
+    // Security: Verify dictionary type is allowed
+    if (!dictType.IsGenericType || dictType.GetGenericTypeDefinition() != typeof(Dictionary<,>))
+        throw new SecurityException("Invalid dictionary type");
 
-        private static void HandleDictionaryMapping(
-            IEnumerable sourceCollection,
-            PropertyInfo destProp,
-            object destination,
-            PropertyDescriptorCollection destDescriptor,
-            Dictionary<object, object> visited)
+    var keyType = dictType.GetGenericArguments()[0];
+    var valueType = dictType.GetGenericArguments()[1];
+    
+    // Security: Validate key and value types
+    if (!IsAllowedType(keyType) || !IsAllowedType(valueType))
+        throw new SecurityException("Dictionary contains prohibited types");
+
+    var dictionary = (IDictionary)Activator.CreateInstance(dictType);
+
+    foreach (var item in sourceCollection)
+    {
+        if (item == null) continue;
+        
+        // Security: Verify item type
+        if (!IsAllowedType(item.GetType())) continue;
+
+        var keyProperty = item.GetType().GetProperty("Key");
+        var valueProperty = item.GetType().GetProperty("Value");
+
+        if (keyProperty == null || valueProperty == null) continue;
+
+        var key = keyProperty.GetValue(item);
+        var value = valueProperty.GetValue(item);
+
+        // Security: Validate key and value
+        if (key == null || !IsAllowedType(key.GetType())) continue;
+        if (value != null && !IsAllowedType(value.GetType())) continue;
+
+        // Map the value if it's a complex type
+        if (!IsSimpleType(valueType) && value != null)
         {
-            var dictType = destProp.PropertyType;
-            var keyType = dictType.GetGenericArguments()[0];
-            var valueType = dictType.GetGenericArguments()[1];
-
-            var dictionary = (IDictionary)Activator.CreateInstance(dictType);
-
-            foreach (var item in sourceCollection)
-            {
-                var keyProperty = item.GetType().GetProperty("Key");
-                var valueProperty = item.GetType().GetProperty("Value");
-
-                if (keyProperty == null || valueProperty == null) continue;
-
-                var key = keyProperty.GetValue(item);
-                var value = valueProperty.GetValue(item);
-
-                // Map the value if it's a complex type
-                if (!IsSimpleType(valueType))
-                {
-                    value = value.MapTo(Activator.CreateInstance(valueType), null, visited);
-                }
-
-                dictionary.Add(key, value);
-            }
-
-            destDescriptor[destProp.Name].SetValue(destination, dictionary);
+            value = value.MapTo(Activator.CreateInstance(valueType), null, visited, currentDepth + 1);
         }
 
+        try
+        {
+            dictionary.Add(key, value);
+        }
+        catch (Exception ex)
+        {
+            // Log dictionary addition error if needed
+            continue;
+        }
+    }
+
+    destDescriptor[destProp.Name].SetValue(destination, dictionary);
+}
         private static Type GetCollectionElementType(Type collectionType)
         {
             if (collectionType.IsArray)
@@ -305,8 +416,12 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
             return null;
         }
-
         public static T Map<T>(this object source) where T : new()
+        {
+            return source.MapTo(new T());
+        }
+        
+        public static T Map<T>(this object source, T data) where T : new()
         {
             return source.MapTo(new T());
         }
