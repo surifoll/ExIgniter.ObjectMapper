@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27428.2043
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper", "ExIgniter.ObjectMapper\ExIgniter.ObjectMapper.csproj", "{E1030ED1-2D65-4341-A3DB-60965012D1ED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper", "ExIgniter.ObjectMapper\ExIgniter.ObjectMapper.csproj", "{8C624F8B-92EC-4527-9293-CB05B2D84C4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper.ConsoleTest", "ExIgniter.ObjectMapper.ConsoleTest\ExIgniter.ObjectMapper.ConsoleTest.csproj", "{BF6B5A71-7962-487A-997C-D553886CD223}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper.Console", "ExIgniter.ObjectMapper.Console\ExIgniter.ObjectMapper.Console.csproj", "{F74CECC2-E218-4225-B28E-5687B57DD0C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExIgniter.ObjectMapper.UnitTest", "ExIgniter.ObjectMapper.UnitTest\ExIgniter.ObjectMapper.UnitTest.csproj", "{AB86BCB9-551E-4DBD-A392-36A0170AB9B9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,14 +15,18 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E1030ED1-2D65-4341-A3DB-60965012D1ED}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BF6B5A71-7962-487A-997C-D553886CD223}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BF6B5A71-7962-487A-997C-D553886CD223}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BF6B5A71-7962-487A-997C-D553886CD223}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BF6B5A71-7962-487A-997C-D553886CD223}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C624F8B-92EC-4527-9293-CB05B2D84C4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C624F8B-92EC-4527-9293-CB05B2D84C4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C624F8B-92EC-4527-9293-CB05B2D84C4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C624F8B-92EC-4527-9293-CB05B2D84C4E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F74CECC2-E218-4225-B28E-5687B57DD0C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F74CECC2-E218-4225-B28E-5687B57DD0C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F74CECC2-E218-4225-B28E-5687B57DD0C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F74CECC2-E218-4225-B28E-5687B57DD0C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB86BCB9-551E-4DBD-A392-36A0170AB9B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB86BCB9-551E-4DBD-A392-36A0170AB9B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB86BCB9-551E-4DBD-A392-36A0170AB9B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB86BCB9-551E-4DBD-A392-36A0170AB9B9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -19,39 +19,40 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
         private static int ComputeLevenshteinDistance(string source, string target)
         {
-            if (source == null || target == null) return 0;
-            if (source.Length == 0 || target.Length == 0) return 0;
-            if (source == target) return source.Length;
+            const int MaxLength = 256; // Adjust as needed for performance
 
-            var sourceWordCount = source.Length;
-            var targetWordCount = target.Length;
+            if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target))
+                return 0;
 
-            // Step 1
-            if (sourceWordCount == 0)
-                return targetWordCount;
+            if (source == target)
+                return 0;
 
-            if (targetWordCount == 0)
-                return sourceWordCount;
+            if (source.Length > MaxLength || target.Length > MaxLength)
+                return int.MaxValue; // consider them too dissimilar to match
 
-            var distance = new int[sourceWordCount + 1, targetWordCount + 1];
+            int sourceLen = source.Length;
+            int targetLen = target.Length;
 
-            // Step 2
-            for (var i = 0; i <= sourceWordCount; distance[i, 0] = i++) ;
-            for (var j = 0; j <= targetWordCount; distance[0, j] = j++) ;
+            var distance = new int[sourceLen + 1, targetLen + 1];
 
-            for (var i = 1; i <= sourceWordCount; i++)
-            for (var j = 1; j <= targetWordCount; j++)
+            for (int i = 0; i <= sourceLen; i++) distance[i, 0] = i;
+            for (int j = 0; j <= targetLen; j++) distance[0, j] = j;
+
+            for (int i = 1; i <= sourceLen; i++)
             {
-                // Step 3
-                var cost = target[j - 1] == source[i - 1] ? 0 : 1;
+                for (int j = 1; j <= targetLen; j++)
+                {
+                    int cost = (source[i - 1] == target[j - 1]) ? 0 : 1;
 
-                // Step 4
-                distance[i, j] = Math.Min(Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
-                    distance[i - 1, j - 1] + cost);
+                    distance[i, j] = Math.Min(
+                        Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                        distance[i - 1, j - 1] + cost);
+                }
             }
 
-            return distance[sourceWordCount, targetWordCount];
+            return distance[sourceLen, targetLen];
         }
+
 
         internal static IGrouping<double, MapEngineObj> CalculateSimilarity(string name, IEnumerable<string> enumerable)
         {

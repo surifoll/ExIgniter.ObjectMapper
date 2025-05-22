@@ -1,14 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿// See https://aka.ms/new-console-template for more information
+
 using System.Diagnostics;
 using AutoMapper;
 using ExIgniter.ObjectMapper.ConsoleTest.Model;
 using ExIgniter.ObjectMapper.ObjectMapper;
 using ExIgniter.ObjectMapper.Objects;
 
-namespace ExIgniter.ObjectMapper.ConsoleTest
-{
-    class Program
+class Program
     {
         static void Main(string[] args)
         {
@@ -115,4 +113,3 @@ namespace ExIgniter.ObjectMapper.ConsoleTest
             Console.Read();
         }
     }
-}

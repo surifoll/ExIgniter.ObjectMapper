@@ -1,31 +1,98 @@
 # ExIgniter.ObjectMapper
-This  is is an intelligent, refactoring safe object mapping library that automatically maps objects to each other event when the property names are not exactly the same.
 
-Features:
+A fast and flexible object-to-object mapping library for .NET, built for performance and deep object graph support. Ideal for mapping between DTOs, ViewModels, and domain entities.
 
-1. Maps Simple Objects
-2. Complex Objects
-3. Exclude Properties
+---
 
-Steps To use  ExIgniter.ObjectMapper
+## 🚀 Features
 
-1. Install ExIgniter.ObjectMapper from Nuget
+* 🔄 Deep mapping of nested complex types
+* 🔍 Similarity-based property matching (name similarity, configurable)
+* 🔁 Collection mapping (e.g., `List<T>`, `IEnumerable<T>`)
+* ❌ Exclude properties with a lambda function
+* ⚡ High-performance via property caching
+* ✅ Backward-compatible APIs: `FasterMap`, `ComplexMap`, `Map`
 
-2. Sample code:
+---
 
-```cs
-    var testCustomer = new Customer() {
-        City = "Eko",
-        FirstName = "Suraj",
-        LastName = "Deji",
-        ID = 1,
-        Order = new Order() { Name = "Benz", Quantity = 1 }
-    };
+## 🛠️ Installation
 
-    var mappedObject = testCustomer.Map(new CustomerVm(), vm => new[] {
-            nameof(vm.PropertyA), nameof(vm.PropertyB)
-        }
-    );
+```bash
+Install-Package ExIgniter.ObjectMapper
 ```
 
-3. Enjoy
+---
+
+## 🧪 Usage
+
+### Basic Mapping
+
+```csharp
+var result = source.Map<DestinationType>();
+```
+
+### Exclude Specific Properties
+
+```csharp
+var result = source.Map<DestinationType>(x => new[] { "IgnoreThisProp" });
+```
+
+### Map Collections
+
+```csharp
+List<SourceType> sources = GetSources();
+var targets = sources.Map(new List<DestinationType>());
+```
+
+### Backward-Compatible Methods
+
+```csharp
+source.FasterMap(destination);
+source.ComplexMap(destination);
+```
+
+---
+
+## ✅ Supported Types
+
+### ✔️ Primitive Types
+
+* `int`, `string`, `bool`, `decimal`, `float`, `double`, `DateTime`, `Guid`, `TimeSpan`, etc.
+
+### ✔️ Complex Types
+
+* Nested classes
+* Lists and collections
+
+### ❗ Unsupported (for now)
+
+* Dictionaries
+* Custom converters (planned)
+
+---
+
+## 🧪 Running Tests
+
+Unit tests are written using [xUnit](https://xunit.net):
+
+```bash
+dotnet test
+```
+
+Tested scenarios:
+
+* Mapping all primitive types
+* Mapping nested and complex objects
+* Mapping object collections
+
+---
+
+## 📦 Contributions
+
+PRs are welcome! Please add tests for any new features or bug fixes.
+
+---
+
+## 📄 License
+
+MIT License

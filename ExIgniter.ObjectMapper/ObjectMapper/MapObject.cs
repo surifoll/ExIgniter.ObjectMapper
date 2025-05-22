@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Configuration;
 using System.Linq;
 using System.Reflection;
 using ExIgniter.ObjectMapper.Objects;
@@ -11,560 +10,330 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 {
     public static class MapObject
     {
-        #region Helper Methods
-        public static string GetParamName(MethodInfo method, int index)
-        {
-            string retVal = string.Empty;
+        private static readonly Dictionary<Type, List<PropertyInfo>> PropertyCache =
+            new Dictionary<Type, List<PropertyInfo>>();
 
-            if (method != null && method.GetParameters().Length > index)
-                retVal = method.GetParameters()[index].Name;
-
-
-            return retVal;
-        }
-        public static void GetTypeOfVariable(PropertyInfo property, out bool type, out bool typeICollection)
+        private static List<PropertyInfo> GetCachedProperties(Type type)
         {
-            var ns = property?.PropertyType?.FullName;
-            type = ns != null && (bool)ns?.StartsWith("System");
-            typeICollection = ns != null && (bool)ns?.StartsWith("System.Collection");
-        }
-        private static bool IsSystemType(PropertyInfo property)
-        {
-            var ns = property?.PropertyType?.FullName;
-            var type = ns != null && (bool)ns?.StartsWith("System");
-            return type;
+            if (!PropertyCache.TryGetValue(type, out var props))
+            {
+                props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance).ToList();
+                PropertyCache[type] = props;
+            }
+
+            return props;
         }
 
-        private static Type GetTypeCustom(object item)
+        // private static bool IsSimpleType(Type type)
+        // {
+        //     return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime);
+        // }
+
+        private static readonly HashSet<Type> PrimitiveTypes = new HashSet<Type>
         {
-            return item.GetType();
+            typeof(string), typeof(bool), typeof(byte), typeof(sbyte), typeof(char),
+            typeof(decimal), typeof(double), typeof(float), typeof(int), typeof(uint),
+            typeof(long), typeof(ulong), typeof(short), typeof(ushort), typeof(DateTime),
+            typeof(DateTimeOffset), typeof(TimeSpan), typeof(Guid)
+        };
+
+        private static bool IsSimpleType(Type type)
+        {
+            return type.IsPrimitive || PrimitiveTypes.Contains(type) || type.IsEnum;
         }
 
-        private static Type GetTypeGeneric<T>(T destination)
+
+        private static Dictionary<string, PropertyInfo> GetSimilarityMap(List<PropertyInfo> source,
+            List<PropertyInfo> destination)
         {
-            return destination.GetGenericIEnumerables();
+            var map = new Dictionary<string, PropertyInfo>();
+            foreach (var src in source)
+            {
+                var match = Util.CalculateSimilarity(src.Name, destination).FirstOrDefault();
+                if (match != null)
+                {
+                    var matchedProp = destination.FirstOrDefault(d => d.Name == match.DestPropertName);
+                    if (matchedProp != null)
+                        map[src.Name] = matchedProp;
+                }
+            }
+
+            return map;
         }
 
-        private static List<PropertyInfo> GetListPropertyInfo(Type srcTypeL)
+        public static T MapTo<T>(this object source, T destination, Func<T, string[]> exclude = null) where T : new()
         {
-            return srcTypeL.GetProperties().ToList();
+            return source.MapTo(destination, exclude, new Dictionary<object, object>());
         }
-       
-        #endregion
-        public static T FasterMap<T>(this object source, T destination)
+
+        private static T MapTo<T>(this object source, T destination, Func<T, string[]> exclude,
+            Dictionary<object, object> visited) where T : new()
         {
             if (source == null)
-                return default(T);
-            if (source is IEnumerable)
+                return default;
+
+            // Check for circular references
+            if (visited.TryGetValue(source, out var existing))
+                return (T)existing;
+
+            visited.Add(source, destination);
+
+            var excludeProps = exclude?.Invoke(destination) ?? Array.Empty<string>();
+
+            if (source is IEnumerable sourceEnumerable && destination is IList destList)
             {
-                var destinationMain = destination as IList;
-                foreach (var item in source as IEnumerable)
+                var elementType = destination.GetType().GetGenericArguments().FirstOrDefault();
+                var destProps = GetCachedProperties(elementType);
+
+                foreach (var item in sourceEnumerable)
                 {
-                    var srcTypeL = GetTypeCustom(item);
-                    var srcPropertiesL = GetListPropertyInfo(srcTypeL);
+                    var srcProps = GetCachedProperties(item.GetType());
+                    var similarityMap = GetSimilarityMap(srcProps, destProps);
+                    var instance = Activator.CreateInstance(elementType);
 
-                    var destinationTypeL = GetTypeGeneric(destination);
-
-                    var destPropertiesL = GetListPropertyInfo(destinationTypeL);
-
-                    var instance = Activator.CreateInstance(destinationTypeL);
-
-                    foreach (var property in srcPropertiesL)
-                    {
-                        GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-                        if (isSystemType && !isICollection)
-                        {
-                            var destPropertName = Util.CalculateSimilarity(property.Name, destPropertiesL)
-                                .FirstOrDefault()?.DestPropertName;
-                            var bestMatch = destPropertiesL.Where(r => destPropertName == r.Name);
-                            bestMatch.FirstOrDefault()?.SetValue(instance, property.GetValue(item, null));
-                        }
-                        else if (isSystemType)
-                        {
-                            var props = TypeDescriptor.GetProperties(destinationTypeL);
-                            var destPropertName = Util.CalculateSimilarity(property.Name, destPropertiesL)
-                                                      .FirstOrDefault()?.DestPropertName ??
-                                                  throw new InvalidOperationException();
-                            var selectedProperty = destPropertiesL.FirstOrDefault(r => r.Name == destPropertName);
-
-                            if (selectedProperty == null) continue;
-                            var instance1 = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var value = property.GetValue(item, null);
-                            var mappedData = value.FasterMap(instance1 as IList);
-                            props[destPropertName].SetValue(instance, mappedData);
-                        }
-                    }
-                    destinationMain?.Add(instance);
-                }
-                return (T) destinationMain;
-            }
-            {
-                var srcType = GetTypeCustom(source);
-                var srcProperties = GetListPropertyInfo(srcType);
-
-                // store this collection for optimum performance
-                var props = TypeDescriptor.GetProperties(
-                    typeof(T));
-                var destinationType = GetTypeCustom(destination);
-                var destProperties = GetListPropertyInfo(destinationType);
-
-                foreach (var property in srcProperties)
-                {
-                    GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-
-                    if (isSystemType && !isICollection)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties).FirstOrDefault()
-                            ?.DestPropertName;
-                        var bestMatch = destProperties.Where(r => destPropertName == r.Name);
-                        bestMatch.FirstOrDefault()?.SetValue(destination, property.GetValue(source, null));
-                    }
-                    else if (isSystemType)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                        if (selectedProperty != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var value = property.GetValue(source, null);
-                            var mappedData = value.FasterMap(instance as IList);
-                            props[destPropertName].SetValue(destination, mappedData);
-                        }
-                    }
-                    else
-                    {
-                        if (property == null) continue;
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty == null) continue;
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).FasterMap(instance);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
+                    MapProperties(item, instance, srcProps, destProps, similarityMap, excludeProps, visited);
+                    destList.Add(instance);
                 }
 
                 return destination;
-            }
-        }
-        public static T FasterMap<T>(this object source, T destination, Func<T,string[]> exceptPred) where T : new()
-        {
-            if (source == null)
-                return default(T);
-
-            var excludePropertie = exceptPred.Invoke(new T());
-            if (source is IEnumerable)
-            {
-                var destinationMain = destination as IList;
-                foreach (var item in source as IEnumerable)
-                {
-                    var srcTypeL = GetTypeCustom(item);
-                    var srcPropertiesL = GetListPropertyInfo(srcTypeL);
-                    var destinationTypeL = GetTypeGeneric(destination);
-                    var destPropertiesL = GetListPropertyInfo(destinationTypeL);
-                    var instance = Activator.CreateInstance(destinationTypeL);
-
-
-                    foreach (var property in srcPropertiesL)
-                    {
-                        if (excludePropertie.Contains(property.Name))
-                            continue;
-                        GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-                        if (isSystemType && !isICollection)
-                        {
-                            var destPropertName = Util.CalculateSimilarity(property.Name, destPropertiesL)
-                                .FirstOrDefault()?.DestPropertName;
-                            var bestMatch = destPropertiesL.Where(r => destPropertName == r.Name);
-                            bestMatch.FirstOrDefault()?.SetValue(instance, property.GetValue(item, null));
-                        }
-                        else if (isSystemType)
-                        {
-                            var props = TypeDescriptor.GetProperties(destinationTypeL);
-                            var destPropertName = Util.CalculateSimilarity(property.Name, destPropertiesL)
-                                                      .FirstOrDefault()?.DestPropertName ??
-                                                  throw new InvalidOperationException();
-                            var selectedProperty = destPropertiesL.FirstOrDefault(r => r.Name == destPropertName);
-
-                            if (selectedProperty == null) continue;
-                            var instance1 = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var value = property.GetValue(item, null);
-                            var mappedData = value.FasterMap(instance1 as IList);
-                            props[destPropertName].SetValue(instance, mappedData);
-                        }
-                    }
-                    destinationMain?.Add(instance);
-                }
-                return (T) destinationMain;
-            }
-            {
-                var srcType = GetTypeCustom(source);
-                var srcProperties = GetListPropertyInfo(srcType);
-
-                // store this collection for optimum performance
-                var props = TypeDescriptor.GetProperties(
-                    typeof(T));
-                var destinationType = GetTypeCustom(destination);
-                var destProperties = GetListPropertyInfo(destinationType);
-
-                foreach (var property in srcProperties)
-                {
-                    if (excludePropertie.Contains(property.Name))
-                        continue;
-                    GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-
-                    if (isSystemType && !isICollection)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties).FirstOrDefault()
-                            ?.DestPropertName;
-                        var bestMatch = destProperties.Where(r => destPropertName == r.Name);
-                        bestMatch.FirstOrDefault()?.SetValue(destination, property.GetValue(source, null));
-                    }
-                    else if (isSystemType)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                        if (selectedProperty != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var value = property.GetValue(source, null);
-                            var mappedData = value.FasterMap(instance as IList);
-                            props[destPropertName].SetValue(destination, mappedData);
-                        }
-                    }
-                    else
-                    {
-                        if (property == null) continue;
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty == null) continue;
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).FasterMap(instance);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
-                }
-
-                return destination;
-            }
-        }
-        public static T Map<T>(this object source, T destination)
-        {
-            if (source == null)
-                return default(T);
-            if (source is IEnumerable)
-            {
-                var destinationMain = destination as IList;
-                foreach (var item in source as IEnumerable)
-                {
-                    var srcTypeL = GetTypeCustom(item);
-                    var srcPropertiesL = GetListPropertyInfo(srcTypeL);
-                    var destinationTypeR = GetTypeGeneric(destination);
-                    var destPropertiesR = GetListPropertyInfo(destinationTypeR);
-
-
-                    var instance = Activator.CreateInstance(destinationTypeR);
-
-                    var props1 = TypeDescriptor.GetProperties(instance.GetType());
-
-                    foreach (var property in srcPropertiesL)
-                    {
-                        //property.SetMethod.Attributes.
-                        var isSystemType = IsSystemType(property);
-                        if (isSystemType)
-                        {
-                            var destinationPropertName =
-                                Util.CalculateSimilarity(property.Name, destPropertiesR).FirstOrDefault()
-                                    ?.DestPropertName ?? throw new InvalidOperationException();
-                            props1[destinationPropertName].SetValue(instance, property.GetValue(item, null));
-                        }
-                    }
-                    destinationMain?.Add(instance);
-                }
-                return (T) destinationMain;
             }
             else
             {
-                var srcType = GetTypeCustom(source);
-                var srcProperties = GetListPropertyInfo(srcType);
+                var srcProps = GetCachedProperties(source.GetType());
+                var destProps = GetCachedProperties(destination.GetType());
+                var similarityMap = GetSimilarityMap(srcProps, destProps);
 
-                // store this collection for optimum performance
-                var props = TypeDescriptor.GetProperties(typeof(T));
-                var destinationType = GetTypeCustom(destination);
-
-                var destProperties = GetListPropertyInfo(destinationType);
-
-                foreach (var property in srcProperties)
-                {
-                    GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-
-                    if (isSystemType && !isICollection)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties).FirstOrDefault()
-                            ?.DestPropertName;
-                        var bestMatch = destProperties.Where(r => destPropertName == r.Name);
-                        bestMatch.FirstOrDefault()?.SetValue(destination, property.GetValue(source, null));
-                    }
-                    else if (isSystemType)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedPropertyInfo = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                        if (selectedPropertyInfo != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedPropertyInfo.PropertyType);
-                            var value = property.GetValue(source, null);
-                            var mappedData = value.FasterMap(instance as IList);
-                            props[destPropertName].SetValue(destination, mappedData);
-                        }
-                    }
-                    else
-                    {
-                        if (property == null) continue;
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty == null) continue;
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).FasterMap(instance);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
-                }
-
+                MapProperties(source, destination, srcProps, destProps, similarityMap, excludeProps, visited);
                 return destination;
             }
-           
         }
-        public static T Map<T>(this object source, T destination, Func<T, string[]> exceptPred) where T : new()
+
+        private static void MapProperties(
+            object source,
+            object destination,
+            List<PropertyInfo> srcProps,
+            List<PropertyInfo> destProps,
+            Dictionary<string, PropertyInfo> map,
+            string[] exclude,
+            Dictionary<object, object> visited)
         {
-            if (source == null)
-                return default(T);
+            var destDescriptor = TypeDescriptor.GetProperties(destination);
 
-            var excludePropertie = exceptPred.Invoke(new T());
-            if (source is IEnumerable)
+            foreach (var srcProp in srcProps)
             {
-                var destinationMain = destination as IList;
-                foreach (var item in source as IEnumerable)
-                {
-                   
-                    var srcTypeL = GetTypeCustom(item);
-                    var srcPropertiesL = GetListPropertyInfo(srcTypeL);
-                    var destinationTypeL = GetTypeGeneric(destination);
-                    var destPropertiesL = GetListPropertyInfo(destinationTypeL);
-
-
-                    var instance = Activator.CreateInstance(destinationTypeL);
-
-                    var props1 = TypeDescriptor.GetProperties(instance.GetType());
-
-                    foreach (var property in srcPropertiesL)
-                    {
-                        if (excludePropertie.Contains(property.Name))
-                            continue;
-                        var isSystemType = IsSystemType(property);
-                        if (isSystemType)
-                        {
-                            var destinationPropertName =
-                                Util.CalculateSimilarity(property.Name, destPropertiesL).FirstOrDefault()
-                                    ?.DestPropertName ?? throw new InvalidOperationException();
-                            props1[destinationPropertName].SetValue(instance, property.GetValue(item, null));
-                        }
-                    }
-                    destinationMain?.Add(instance);
-                }
-                return (T)destinationMain;
-            }
-            else
-            {
-                var srcType = GetTypeCustom(source);
-                var srcProperties = GetListPropertyInfo(srcType);
-
-                // store this collection for optimum performance
-                var props = TypeDescriptor.GetProperties(typeof(T));
-                var destinationType = GetTypeCustom(destination);
-
-                var destProperties = GetListPropertyInfo(destinationType);
-
-                foreach (var property in srcProperties)
-                {
-                    GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-
-                    if (isSystemType && !isICollection)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties).FirstOrDefault()
-                            ?.DestPropertName;
-                        var bestMatch = destProperties.Where(r => destPropertName == r.Name);
-                        bestMatch.FirstOrDefault()?.SetValue(destination, property.GetValue(source, null));
-                    }
-                    else if (isSystemType)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedPropertyInfo = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                        if (selectedPropertyInfo != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedPropertyInfo.PropertyType);
-                            var value = property.GetValue(source, null);
-                            var mappedData = value.FasterMap(instance as IList);
-                            props[destPropertName].SetValue(destination, mappedData);
-                        }
-                    }
-                    else
-                    {
-                        if (property == null) continue;
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty == null) continue;
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var mappedData = property.GetValue(source, null).FasterMap(instance);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
-                }
-
-                return destination;
-            }
-
-        }
-        public static T ComplexMap<T>(this object source, T destination)
-        {
-            if (source == null)
-                return default(T);
-
-            var srcType = GetTypeCustom(source);
-            var srcProperties = GetListPropertyInfo(srcType);
-
-            // store this collection for optimum performance
-            var props = TypeDescriptor.GetProperties(destination.GetType());
-
-            var destinationType = GetTypeCustom(destination);
-            var destProperties = GetListPropertyInfo(destinationType);
-
-            foreach (var property in srcProperties)
-            {
-                GetTypeOfVariable(property, out var isSystemType, out var isICollection);
-
-                if (isSystemType && !isICollection)
-                {
-                    var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                              .FirstOrDefault()?.DestPropertName ??
-                                          throw new InvalidOperationException();
-                    props[destPropertName]
-                        .SetValue(destination, property.GetValue(source, null));
-                }
-                else if (isSystemType)
-                {
-                    var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                              .FirstOrDefault()?.DestPropertName ??
-                                          throw new InvalidOperationException();
-                    var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                    if (selectedProperty != null)
-                    {
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var value = property.GetValue(source, null);
-                        var mappedData = value.FasterMap(instance as IList);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
-                }
-                else
-                {
-                    if (property != null)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var data = property.GetValue(source, null).ComplexMap(instance);
-                            props[destPropertName].SetValue(destination, data);
-                        }
-                    }
-                }
-            }
-
-            return destination;
-        }
-        public static T ComplexMap<T>(this object source, T destination, Func<T, string[]> exceptPred) where T : new()
-        {
-            if (source == null)
-                return default(T);
-
-            var excludePropertie = exceptPred.Invoke(new T());
-            var srcType = GetTypeCustom(source);
-            var srcProperties = GetListPropertyInfo(srcType);
-
-            // store this collection for optimum performance
-            var props = TypeDescriptor.GetProperties(destination.GetType());
-
-            var destinationType = GetTypeCustom(destination);
-            var destProperties = GetListPropertyInfo(destinationType);
-
-            foreach (var property in srcProperties)
-            {
-                if (excludePropertie.Contains(property.Name))
+                if (exclude.Contains(srcProp.Name) || !map.TryGetValue(srcProp.Name, out var destProp))
                     continue;
-                GetTypeOfVariable(property, out var isSystemType, out var isICollection);
 
-                if (isSystemType && !isICollection)
+                var value = srcProp.GetValue(source);
+                if (value == null)
+                    continue;
+
+                if (IsSimpleType(srcProp.PropertyType))
                 {
-                    var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                              .FirstOrDefault()?.DestPropertName ??
-                                          throw new InvalidOperationException();
-                    props[destPropertName]
-                        .SetValue(destination, property.GetValue(source, null));
+                    destProp.SetValue(destination, value);
                 }
-                else if (isSystemType)
+                else if (typeof(IEnumerable).IsAssignableFrom(srcProp.PropertyType) &&
+                         srcProp.PropertyType != typeof(string))
                 {
-                    var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                              .FirstOrDefault()?.DestPropertName ??
-                                          throw new InvalidOperationException();
-                    var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-
-                    if (selectedProperty != null)
-                    {
-                        var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                        var value = property.GetValue(source, null);
-                        var mappedData = value.FasterMap(instance as IList);
-                        props[destPropertName].SetValue(destination, mappedData);
-                    }
+                    HandleCollectionMapping(source, destination, srcProp, destProp, destDescriptor, visited);
                 }
                 else
                 {
-                    if (property != null)
-                    {
-                        var destPropertName = Util.CalculateSimilarity(property.Name, destProperties)
-                                                  .FirstOrDefault()?.DestPropertName ??
-                                              throw new InvalidOperationException();
-                        var selectedProperty = destProperties.FirstOrDefault(r => r.Name == destPropertName);
-                        if (selectedProperty != null)
-                        {
-                            var instance = Activator.CreateInstance(selectedProperty.PropertyType);
-                            var data = property.GetValue(source, null).ComplexMap(instance);
-                            props[destPropertName].SetValue(destination, data);
-                        }
-                    }
+                    var nestedInstance = Activator.CreateInstance(destProp.PropertyType);
+                    var mapped = value.MapTo(nestedInstance, null, visited);
+                    destDescriptor[destProp.Name].SetValue(destination, mapped);
                 }
             }
+        }
 
-            return destination;
+        private static void HandleCollectionMapping(
+            object source,
+            object destination,
+            PropertyInfo srcProp,
+            PropertyInfo destProp,
+            PropertyDescriptorCollection destDescriptor,
+            Dictionary<object, object> visited)
+        {
+            var sourceCollection = (IEnumerable)srcProp.GetValue(source);
+            var targetType = destProp.PropertyType;
+
+            // Special handling for dictionaries
+            if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            {
+                HandleDictionaryMapping(sourceCollection, destProp, destination, destDescriptor, visited);
+                return;
+            }
+
+            var elementType = GetCollectionElementType(targetType);
+            if (elementType == null) return;
+
+            var mappedItems = new List<object>();
+            foreach (var item in sourceCollection)
+            {
+                var mappedItem = IsSimpleType(elementType)
+                    ? item
+                    : item.MapTo(Activator.CreateInstance(elementType), null, visited);
+                mappedItems.Add(mappedItem);
+            }
+
+            object targetCollection = CreateTargetCollection(targetType, elementType, mappedItems);
+            if (targetCollection != null)
+            {
+                destDescriptor[destProp.Name].SetValue(destination, targetCollection);
+            }
+        }
+
+        private static void HandleDictionaryMapping(
+            IEnumerable sourceCollection,
+            PropertyInfo destProp,
+            object destination,
+            PropertyDescriptorCollection destDescriptor,
+            Dictionary<object, object> visited)
+        {
+            var dictType = destProp.PropertyType;
+            var keyType = dictType.GetGenericArguments()[0];
+            var valueType = dictType.GetGenericArguments()[1];
+
+            var dictionary = (IDictionary)Activator.CreateInstance(dictType);
+
+            foreach (var item in sourceCollection)
+            {
+                var keyProperty = item.GetType().GetProperty("Key");
+                var valueProperty = item.GetType().GetProperty("Value");
+
+                if (keyProperty == null || valueProperty == null) continue;
+
+                var key = keyProperty.GetValue(item);
+                var value = valueProperty.GetValue(item);
+
+                // Map the value if it's a complex type
+                if (!IsSimpleType(valueType))
+                {
+                    value = value.MapTo(Activator.CreateInstance(valueType), null, visited);
+                }
+
+                dictionary.Add(key, value);
+            }
+
+            destDescriptor[destProp.Name].SetValue(destination, dictionary);
+        }
+
+        private static Type GetCollectionElementType(Type collectionType)
+        {
+            if (collectionType.IsArray)
+                return collectionType.GetElementType();
+
+            if (collectionType.IsGenericType)
+            {
+                var genericType = collectionType.GetGenericTypeDefinition();
+                if (genericType == typeof(Dictionary<,>))
+                    return typeof(object); // Dictionaries are handled separately
+                else
+                    return collectionType.GetGenericArguments().FirstOrDefault();
+            }
+
+            return typeof(object);
+        }
+
+        private static object CreateTargetCollection(Type targetType, Type elementType, List<object> items)
+        {
+            try
+            {
+                if (targetType.IsArray)
+                {
+                    var array = Array.CreateInstance(elementType, items.Count);
+                    for (int i = 0; i < items.Count; i++)
+                        array.SetValue(items[i], i);
+                    return array;
+                }
+
+                if (targetType.IsGenericType)
+                {
+                    var genericType = targetType.GetGenericTypeDefinition();
+
+                    if (genericType == typeof(List<>) || genericType == typeof(IList<>))
+                    {
+                        var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+                        foreach (var item in items) list.Add(item);
+                        return list;
+                    }
+                    else if (genericType == typeof(HashSet<>))
+                    {
+                        // Create a new HashSet and add all items
+                        // Create the concrete HashSet<T> type
+                        var concreteHashSetType = typeof(HashSet<>).MakeGenericType(elementType);
+                        var hashSet = Activator.CreateInstance(concreteHashSetType);
+
+                        // Get the Add method via reflection
+                        var addMethod = concreteHashSetType.GetMethod("Add");
+
+                        // Add each item to the HashSet
+                        foreach (var item in items)
+                        {
+                            addMethod.Invoke(hashSet, new[] { item });
+                        }
+
+                        return hashSet;
+                    }
+                    else if (genericType == typeof(Queue<>))
+                    {
+                        var queue = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+                        foreach (var item in items) queue.Add(item);
+                        return Activator.CreateInstance(targetType, queue);
+                    }
+                    else if (genericType == typeof(Stack<>))
+                    {
+                        var stack = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
+                        foreach (var item in items) stack.Add(item);
+                        return Activator.CreateInstance(targetType, stack);
+                    }
+                }
+
+                // Fallback for non-generic collections
+                if (typeof(IList).IsAssignableFrom(targetType))
+                {
+                    var list = (IList)Activator.CreateInstance(targetType);
+                    foreach (var item in items) list.Add(item);
+                    return list;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error creating collection: {ex.Message}");
+                return null;
+            }
+
+            return null;
+        }
+
+        public static T Map<T>(this object source) where T : new()
+        {
+            return source.MapTo(new T());
+        }
+
+        public static T Map<T>(this object source, Func<T, string[]> exclude) where T : new()
+        {
+            return source.MapTo(new T(), exclude);
+        }
+
+        public static T FasterMap<T>(this object source, T destination) where T : new()
+        {
+            return source.MapTo(destination);
+        }
+
+        public static T FasterMap<T>(this object source, T destination, Func<T, string[]> excludePred) where T : new()
+        {
+            return source.MapTo(destination, excludePred);
+        }
+
+        public static T ComplexMap<T>(this object source, T destination) where T : new()
+        {
+            return source.MapTo(destination);
+        }
+
+        public static T ComplexMap<T>(this object source, T destination, Func<T, string[]> excludePred) where T : new()
+        {
+            return source.MapTo(destination, excludePred);
         }
     }
 }
-
-
