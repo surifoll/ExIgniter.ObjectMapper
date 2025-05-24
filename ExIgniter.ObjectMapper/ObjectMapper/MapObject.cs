@@ -8,6 +8,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security;
+using ExIgniter.ObjectMapper.Types;
 
 namespace ExIgniter.ObjectMapper.ObjectMapper
 {
@@ -39,7 +40,22 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
     {
         return source.MapTo(new T());
     }
+    public static T MapTo<T>(this object source, MapConfig config) where T : new()
+    {
+        return source.MapTo(new T(), null, config);
+    }
+    public static T MapTo<T>(this object source) where T : new()
+    {
+        return source.MapTo(new T());
+    }
+    public static Dictionary<string, object> ToDictionary(this object obj)
+    {
+        return obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .ToDictionary(p => p.Name, p => p.GetValue(obj));
+    }
 
+  
+    
     public static T Map<T>(this object source, T destination) where T : new()
     {
         return source.MapTo(destination);
@@ -114,6 +130,54 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
                 ignoredProps.Add(prop);
             }
         }
+        
+        if (config != null && config.TryConvert(source, typeof(T), out var convertedObj, destination))
+        {
+            return (T)convertedObj;
+        }
+        // Handle anonymous object to Dictionary<string, string> or Dictionary<string, object>
+        if (typeof(T).IsGenericType && typeof(IDictionary).IsAssignableFrom(typeof(T)))
+        {
+            var dictType = typeof(T);
+            var keyType = dictType.GetGenericArguments()[0];
+            var valueType = dictType.GetGenericArguments()[1];
+
+            if (keyType == typeof(string))
+            {
+                var result = (IDictionary)Activator.CreateInstance(dictType);
+                foreach (var prop in source.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    var key = prop.Name;
+                    var value = prop.GetValue(source);
+
+                    if (config != null && config.TryConvert(value, valueType, out var converted))
+                    {
+                        result[key] = converted;
+                    }
+                    else if (IsSimpleType(valueType))
+                    {
+                        if (value is IConvertible)
+                        {
+                            result[key] = Convert.ChangeType(value, valueType);
+                        }
+                        else
+                        {
+                            // Fallback: string representation or skip
+                            result[key] = value?.ToString();
+                        }
+                    }
+                    else if (value != null)
+                    {
+                        result[key] = value.MapTo(Activator.CreateInstance(valueType), null, config, visited, currentDepth + 1);
+                    }
+
+
+                    
+                }
+
+                return (T)result;
+            }
+        }
 
 
         // Initialize visited dictionary if not provided
@@ -139,6 +203,7 @@ namespace ExIgniter.ObjectMapper.ObjectMapper
 
         return destination;
     }
+    
 
    
     private static void HandleObjectMapping(
@@ -500,84 +565,154 @@ private static void HandleCollectionPropertyMapping(
     }
 }
 
-    private static void MapProperties(
-        object source,
-        object destination,
-        List<PropertyInfo> srcProps,
-        List<PropertyInfo> destProps,
-        Dictionary<string, PropertyInfo> propertyMap,
-        string[] excludedProperties,
-        Dictionary<object, object> visited,
-        int currentDepth,
-        MapConfig config)
+   private static void MapProperties(
+    object source,
+    object destination,
+    List<PropertyInfo> srcProps,
+    List<PropertyInfo> destProps,
+    Dictionary<string, PropertyInfo> propertyMap,
+    string[] excludedProperties,
+    Dictionary<object, object> visited,
+    int currentDepth,
+    MapConfig config)
+{
+    
+    // Special handling for dictionary destinations
+    if (destination is IDictionary<string, object> dict)
     {
         foreach (var srcProp in srcProps)
         {
-            try
+            // Skip if property is excluded
+            if (excludedProperties != null && excludedProperties.Contains(srcProp.Name))
+                continue;
+
+            try 
             {
-                // Skip if property is excluded or not in map
-                if (excludedProperties.Contains(srcProp.Name))
-                    continue;
-                if (!propertyMap.TryGetValue(srcProp.Name, out var destProp)) continue;
-
-                // Validate property types are allowed
-                if (!IsAllowedType(srcProp.PropertyType) || !IsAllowedType(destProp.PropertyType))
-                    continue;
-
-                // Get source value with null handling
                 var value = srcProp.GetValue(source);
                 if (value == null)
                 {
                     if (config?._nullHandling == NullHandlingStrategy.ThrowException)
                         continue;
 
-                    value = config?.HandleNull(destProp.PropertyType);
+                    value = config?.HandleNull(srcProp.PropertyType);
                     if (value == null) continue;
                 }
 
-                // Handle different mapping scenarios
-                if (IsSimpleType(srcProp.PropertyType))
+                // Handle collections differently
+                if (typeof(IEnumerable).IsAssignableFrom(srcProp.PropertyType) && !(value is string))
                 {
-                    // Simple type conversion
-                    if (IsSafeAssignment(srcProp.PropertyType, destProp.PropertyType))
+                    var elementType = GetCollectionElementType(srcProp.PropertyType);
+                    var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(typeof(object)));
+                    
+                    foreach (var item in (IEnumerable)value)
                     {
-                        var convertedValue = Convert.ChangeType(value, destProp.PropertyType);
-                        destProp.SetValue(destination, convertedValue);
+                        if (item == null) continue;
+                        
+                        if (IsSimpleType(item.GetType()))
+                        {
+                            list.Add(item);
+                        }
+                        else
+                        {
+                            var nestedDict = new Dictionary<string, object>();
+                            item.MapTo(nestedDict, exclude: null, config: config, 
+                                      visited: visited, currentDepth: currentDepth + 1);
+                            list.Add(nestedDict);
+                        }
                     }
+                    
+                    dict[srcProp.Name] = list;
                 }
-                else if (typeof(IEnumerable).IsAssignableFrom(srcProp.PropertyType) &&
-                         !(value is string))
+                else if (IsSimpleType(srcProp.PropertyType))
                 {
-                    // Collection mapping
-                    HandleCollectionPropertyMapping(
-                        value: (IEnumerable)value,
-                        destProp: destProp,
-                        destination: destination,
-                        visited: visited,
-                        currentDepth: currentDepth,
-                        config: config
-                    );
+                    dict[srcProp.Name] = value;
                 }
                 else
                 {
-                    // Complex type mapping
-                    var nestedInstance = Activator.CreateInstance(destProp.PropertyType);
-                    var mapped = value.MapTo(
-                        destination: nestedInstance,
-                        exclude: null,
-                        config: config,
-                        visited: visited,
-                        currentDepth: currentDepth + 1
-                    );
-                    destProp.SetValue(destination, mapped);
+                    // Handle complex objects
+                    var nestedDict = new Dictionary<string, object>();
+                    value.MapTo(nestedDict, exclude: null, config: config, 
+                              visited: visited, currentDepth: currentDepth + 1);
+                    dict[srcProp.Name] = nestedDict;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error mapping property {srcProp.Name}: {ex.Message}");
+                Debug.WriteLine($"Error mapping property {srcProp.Name} to dictionary: {ex.Message}");
+                // Continue with next property
             }
         }
+        return;
     }
+
+    // Original property-to-property mapping for non-dictionary destinations
+    foreach (var srcProp in srcProps)
+    {
+        try
+        {
+            // Skip if property is excluded or not in map
+            if (excludedProperties != null && excludedProperties.Contains(srcProp.Name))
+                continue;
+            if (!propertyMap.TryGetValue(srcProp.Name, out var destProp)) continue;
+
+            // Validate property types are allowed
+            if (!IsAllowedType(srcProp.PropertyType) || !IsAllowedType(destProp.PropertyType))
+                continue;
+
+            // Get source value with null handling
+            var value = srcProp.GetValue(source);
+            if (value == null)
+            {
+                if (config?._nullHandling == NullHandlingStrategy.ThrowException)
+                    continue;
+
+                value = config?.HandleNull(destProp.PropertyType);
+                if (value == null) continue;
+            }
+
+            // Handle different mapping scenarios
+            if (IsSimpleType(srcProp.PropertyType))
+            {
+                // Simple type conversion
+                if (IsSafeAssignment(srcProp.PropertyType, destProp.PropertyType))
+                {
+                    var convertedValue = Convert.ChangeType(value, destProp.PropertyType);
+                    destProp.SetValue(destination, convertedValue);
+                }
+            }
+            else if (typeof(IEnumerable).IsAssignableFrom(srcProp.PropertyType) &&
+                     !(value is string))
+            {
+                // Collection mapping
+                HandleCollectionPropertyMapping(
+                    value: (IEnumerable)value,
+                    destProp: destProp,
+                    destination: destination,
+                    visited: visited,
+                    currentDepth: currentDepth,
+                    config: config
+                );
+            }
+            else
+            {
+                // Complex type mapping
+                var nestedInstance = Activator.CreateInstance(destProp.PropertyType);
+                var mapped = value.MapTo(
+                    destination: nestedInstance,
+                    exclude: null,
+                    config: config,
+                    visited: visited,
+                    currentDepth: currentDepth + 1
+                );
+                destProp.SetValue(destination, mapped);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error mapping property {srcProp.Name}: {ex.Message}");
+        }
+    }
+}
 
     #endregion
 
@@ -737,11 +872,12 @@ private static void HandleCollectionPropertyMapping(
                 object convertedValue = null;
                 if (value != null)
                 {
-                    if (IsSimpleType(valueType))
+                    
+                    if (config != null && config.TryConvert(value, valueType, out var converted))
                     {
-                        convertedValue = SafeConvert(value, valueType);
+                        convertedValue = converted;
                     }
-                    else
+                    else if (!IsSimpleType(valueType))
                     {
                         convertedValue = value.MapTo(
                             destination: Activator.CreateInstance(valueType),
@@ -751,6 +887,11 @@ private static void HandleCollectionPropertyMapping(
                             currentDepth: currentDepth + 1
                         );
                     }
+                    else
+                    {
+                        convertedValue = SafeConvert(value, valueType);
+                    }
+
                 }
                 
                 dictionary.Add(convertedKey, convertedValue);
@@ -884,6 +1025,8 @@ private static void HandleCollectionPropertyMapping(
     }
 
     #endregion
+
+   
 }
 
 // Helper class for reference equality comparison
@@ -900,200 +1043,6 @@ private static void HandleCollectionPropertyMapping(
         }
     }
 
-    #region Attributes and Configuration
-
-    [AttributeUsage(AttributeTargets.Property)]
-    public class NoMapAttribute : Attribute
-    {
-    }
-
-    [AttributeUsage(AttributeTargets.Class)]
-    public class UnmappableAttribute : Attribute
-    {
-    }
-
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Class)]
-    public class MapAsAttribute : Attribute
-    {
-        public string TargetPropertyName { get; }
-        public Type ConverterType { get; }
-
-        public MapAsAttribute(string targetPropertyName) => TargetPropertyName = targetPropertyName;
-        public MapAsAttribute(Type converterType) => ConverterType = converterType;
-    }
-
-    [AttributeUsage(AttributeTargets.Constructor)]
-    public class MapConstructorAttribute : Attribute
-    {
-    }
-
-public class MapConfig
-    {
-        private readonly Dictionary<Type, Delegate> _typeConverters = new Dictionary<Type, Delegate>();
-        private readonly Dictionary<Type, HashSet<string>> _ignoredProperties = new Dictionary<Type, HashSet<string>>();
-        internal NullHandlingStrategy _nullHandling = NullHandlingStrategy.ThrowException;
-        private readonly Dictionary<Type, Func<object, IEnumerable<string>>> _conditionalIgnores = 
-            new Dictionary<Type, Func<object, IEnumerable<string>>>();
-        
-        public MapConfig MapAs<TSource, TDest>(Func<TSource, TDest> converter)
-        {
-            _typeConverters[typeof(TSource)] = converter;
-            return this;
-        }
-        public MapConfig Ignore<T>(Func<T, IEnumerable<string>> condition)
-        {
-            _conditionalIgnores[typeof(T)] = target => condition((T)target);
-            return this;
-        }
-
+   
     
-        public IEnumerable<string> GetIgnoredProperties(Type type, object instance)
-        {
-            // First check for conditional ignores
-            if (_conditionalIgnores.TryGetValue(type, out var condition))
-            {
-                return condition(instance) ?? Enumerable.Empty<string>();
-            }
-        
-            // Fall back to static ignores if no condition exists
-            if (_ignoredProperties.TryGetValue(type, out var ignoredSet))
-            {
-                return ignoredSet;
-            }
-        
-            return Enumerable.Empty<string>();
-        }
-        
-        public MapConfig Ignore<T>(Expression<Func<T, object>> expression)
-        {
-            var memberExpression = expression.Body as MemberExpression;
-            if (memberExpression == null)
-            {
-                if (expression.Body is UnaryExpression unary && 
-                    unary.Operand is MemberExpression operand)
-                {
-                    memberExpression = operand;
-                }
-                else
-                {
-                    throw new ArgumentException("Expression must be a member expression");
-                }
-            }
-
-            // Build the full property path
-            var path = new List<string>();
-            var current = memberExpression;
-            while (current != null)
-            {
-                path.Insert(0, current.Member.Name);
-                current = current.Expression as MemberExpression;
-            }
-
-            var fullPath = string.Join(".", path);
-    
-            // Initialize the HashSet if it doesn't exist
-            if (!_ignoredProperties.TryGetValue(typeof(T), out var ignoredSet))
-            {
-                ignoredSet = new HashSet<string>();
-                _ignoredProperties[typeof(T)] = ignoredSet;
-            }
-    
-            // Add the path to the set
-            ignoredSet.Add(fullPath);
-    
-            return this;
-        }
-        internal bool ShouldIgnore(Type targetType, string propertyName, object targetInstance)
-        {
-            // Check conditional ignores first
-            if (_conditionalIgnores.TryGetValue(targetType, out var condition))
-            {
-                var ignoredProps = condition(targetInstance);
-                if (ignoredProps != null)
-                {
-                    // Check both direct match and nested paths
-                    foreach (var ignoredProp in ignoredProps)
-                    {
-                        if (propertyName == ignoredProp || 
-                            propertyName.StartsWith(ignoredProp + ".") ||
-                            ignoredProp.StartsWith(propertyName + "."))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            // Check static ignores with path matching
-            if (_ignoredProperties.TryGetValue(targetType, out var props))
-            {
-                foreach (var prop in props)
-                {
-                    if (propertyName == prop || 
-                        propertyName.StartsWith(prop + ".") ||
-                        prop.StartsWith(propertyName + "."))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-
-        public MapConfig WithNullHandling(NullHandlingStrategy strategy)
-        {
-            _nullHandling = strategy;
-            return this;
-        }
-
-        internal bool ShouldIgnore(Type targetType, string propertyName)
-        {
-            // Simplified version without instance for cases where we don't have the target instance
-            if (_ignoredProperties.TryGetValue(targetType, out var props))
-            {
-                foreach (var prop in props)
-                {
-                    if (propertyName == prop || 
-                        propertyName.StartsWith(prop + ".") ||
-                        prop.StartsWith(propertyName + "."))
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        internal bool TryConvert(object value, Type targetType, out object result)
-        {
-            if (_typeConverters.TryGetValue(value.GetType(), out var converter))
-            {
-                result = ((Delegate)converter).DynamicInvoke(value);
-                return true;
-            }
-
-            result = null;
-            return false;
-        }
-
-        internal object HandleNull(Type targetType) => _nullHandling switch
-        {
-            NullHandlingStrategy.ThrowException => throw new ArgumentNullException(),
-            NullHandlingStrategy.UseDefaultValue => targetType.IsValueType
-                ? Activator.CreateInstance(targetType)
-                : null,
-            _ => null
-        };
-    }
-
-    public enum NullHandlingStrategy
-    {
-        ThrowException,
-        UseDefaultValue,
-        UseNull
-    }
-
-    #endregion
 }

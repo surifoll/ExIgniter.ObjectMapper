@@ -45,19 +45,9 @@ class Program
                 Order = new Order { Name = "Benz", Quantity = 1 }
             };
 
-            // Benchmark: ExIgniter FasterMap
-            Console.WriteLine("========== ExIgniter FasterMap ================");
-            var swExIgniter = Stopwatch.StartNew();
-            var exMapped = testCustomer.FasterMap(new CustomerVm());
-            swExIgniter.Stop();
-            Console.WriteLine($"Elapsed = {swExIgniter.ElapsedMilliseconds} ms");
+           
 
-            // Benchmark: AutoMapper
-            Console.WriteLine("========== AutoMapper ================");
-            var swAutoMapper = Stopwatch.StartNew();
-            var autoMapped = Mapper.Map<CustomerVm>(testCustomer);
-            swAutoMapper.Stop();
-            Console.WriteLine($"Elapsed = {swAutoMapper.ElapsedMilliseconds} ms");
+            
 
             // Benchmark: ExIgniter Map (generic)
             Console.WriteLine("========== ExIgniter Map ================");
@@ -65,6 +55,20 @@ class Program
             var genericMapped = testCustomer.Map<CustomerVm>();
             swMap.Stop();
             Console.WriteLine($"Elapsed = {swMap.ElapsedMilliseconds} ms");
+            
+            // Benchmark: ExIgniter FasterMap
+            Console.WriteLine("========== ExIgniter FasterMap ================");
+            var swExIgniter = Stopwatch.StartNew();
+            var exMapped = testCustomer.FasterMap(new CustomerVm());
+            swExIgniter.Stop();
+            Console.WriteLine($"Elapsed = {swExIgniter.ElapsedMilliseconds} ms");
+            
+            // Benchmark: AutoMapper
+            Console.WriteLine("========== AutoMapper ================");
+            var swAutoMapper = Stopwatch.StartNew();
+            var autoMapped = Mapper.Map<CustomerVm>(testCustomer);
+            swAutoMapper.Stop();
+            Console.WriteLine($"Elapsed = {swAutoMapper.ElapsedMilliseconds} ms");
 
             // Benchmark: Manual Mapping
             Console.WriteLine("========== Manual Mapping ================");

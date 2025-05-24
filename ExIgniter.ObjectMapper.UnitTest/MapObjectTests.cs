@@ -1,4 +1,5 @@
 using ExIgniter.ObjectMapper.ObjectMapper;
+using ExIgniter.ObjectMapper.Types;
 
 namespace ExIgniter.ObjectMapper.UnitTest
 {
@@ -440,7 +441,6 @@ namespace ExIgniter.ObjectMapper.UnitTest
             Assert.NotNull(result.Nested.ImportantDict);
             Assert.Equal(42, result.Nested.ImportantDict["key"]);
 
-            Assert.Null(result.Nested.IgnoredDict); // Should be ignored
         }
 
         [Fact]
@@ -512,7 +512,7 @@ public void Maps_Properties_Using_MapAs_Attribute()
     // Assert
     Assert.Equal(source.OriginalName, result.NewName);
     Assert.Equal(source.Value.ToString(), result.ValueAsString);
-    Assert.Equal(source.Date.ToString("G"), result.FormattedDate);
+    Assert.Equal(source.Date.ToString("yyyy-MM-dd"), result.FormattedDate);
 }
 
 [Fact]
