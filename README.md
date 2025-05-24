@@ -1,15 +1,15 @@
-Here's an updated `README.md` for ExIgniter.ObjectMapper version 3.0.0, highlighting new features and improvements.
+Here's an updated `README.md` for ExIgniter.ObjectMapper version 3.0.2, highlighting new features and improvements.
 
 -----
 
 [](https://www.nuget.org/packages/ExIgniter.ObjectMapper/)
 [](https://opensource.org/licenses/MIT)
 
-# ExIgniter.ObjectMapper 3.0
+# ExIgniter.ObjectMapper 3.0.2
 
 **ExIgniter.ObjectMapper** is an intelligent, high-performance object mapping library for .NET, now even more powerful and streamlined.
 
-Version 3.0.0 delivers:
+Version 3.0.2 delivers:
 
   * 🚀 **Enhanced performance** through advanced optimization techniques.
   * 🛡️ **Richer configuration options** for fine-grained control over mapping behavior.
