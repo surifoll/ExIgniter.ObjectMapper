@@ -97,8 +97,7 @@ Seamlessly maps diverse collection types:
 
 ## 🤝 Contributing
 
-We welcome contributions from the community\! Please refer to our [Contribution Guidelines](https://github.com/yourname/ExIgniter.ObjectMapper/blob/main/CONTRIBUTING.md) for details on how to get involved.
-
+We welcome contributions from the community\! 
 -----
 
 ## 📄 License
