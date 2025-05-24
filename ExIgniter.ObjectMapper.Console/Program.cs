@@ -35,7 +35,7 @@ class Program
                 cfg.CreateMap<Customer, CustomerVm>();
                 cfg.CreateMap<Order, OrderVm>();
             });
-
+             
             var testCustomer = new Customer
             {
                 City = "Eko",
