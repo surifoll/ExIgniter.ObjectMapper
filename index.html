@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExIgniter.ObjectMapper 2.0 Documentation</title>
+    <style>
+        :root {
+            --primary: #2b579a;
+            --secondary: #00a759;
+            --dark: #212529;
+            --light: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        nav {
+            background: var(--light);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        nav ul {
+            display: flex;
+            list-style: none;
+            padding: 0;
+            gap: 1rem;
+        }
+        nav a {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        h1, h2, h3 {
+            color: var(--primary);
+        }
+        h1 {
+            margin-top: 0;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .note {
+            background: #e7f5ff;
+            padding: 1rem;
+            border-left: 4px solid var(--primary);
+            margin: 1rem 0;
+        }
+        .warning {
+            background: #fff3bf;
+            padding: 1rem;
+            border-left: 4px solid #ffd43b;
+            margin: 1rem 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 2rem;
+        }
+        .toc {
+            position: sticky;
+            top: 20px;
+            align-self: start;
+        }
+        .toc ul {
+            list-style: none;
+            padding: 0;
+        }
+        .toc li {
+            margin-bottom: 0.5rem;
+        }
+        .toc a {
+            text-decoration: none;
+            color: var(--dark);
+        }
+        .toc a:hover {
+            color: var(--primary);
+        }
+        .method-signature {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: Consolas, monospace;
+            margin-bottom: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: var(--primary);
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ExIgniter.ObjectMapper 2.0</h1>
+        <p>The intelligent, high-performance object mapper for .NET</p>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#getting-started">Getting Started</a></li>
+            <li><a href="#api-reference">API Reference</a></li>
+            <li><a href="#migration-guide">Migration Guide</a></li>
+            <li><a href="#advanced-usage">Advanced Usage</a></li>
+        </ul>
+    </nav>
+
+    <div class="grid">
+        <aside class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#getting-started">Getting Started</a>
+                    <ul>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#basic-usage">Basic Usage</a></li>
+                    </ul>
+                </li>
+                <li><a href="#api-reference">API Reference</a>
+                    <ul>
+                        <li><a href="#core-methods">Core Methods</a></li>
+                        <li><a href="#mapconfig">MapConfig</a></li>
+                        <li><a href="#attributes">Attributes</a></li>
+                    </ul>
+                </li>
+                <li><a href="#migration-guide">Migration Guide</a>
+                    <ul>
+                        <li><a href="#breaking-changes">Breaking Changes</a></li>
+                        <li><a href="#deprecated-features">Deprecated Features</a></li>
+                    </ul>
+                </li>
+                <li><a href="#advanced-usage">Advanced Usage</a>
+                    <ul>
+                        <li><a href="#performance-tuning">Performance Tuning</a></li>
+                        <li><a href="#custom-mappings">Custom Mappings</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </aside>
+
+        <main>
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>ExIgniter.ObjectMapper 2.0 is a complete redesign of our popular object mapping library, offering:</p>
+                <ul>
+                    <li>3x performance improvements through optimized reflection caching</li>
+                    <li>Enhanced property matching algorithms</li>
+                    <li>Support for constructor initialization</li>
+                    <li>Attribute-based configuration</li>
+                    <li>Improved null handling strategies</li>
+                    <li>Backward compatibility with v1.x APIs</li>
+                </ul>
+            </section>
+
+            <section id="getting-started">
+                <h2>Getting Started</h2>
+                
+                <article id="installation">
+                    <h3>Installation</h3>
+                    <p>Install via NuGet Package Manager:</p>
+                    <pre><code>Install-Package ExIgniter.ObjectMapper</code></pre>
+                    <p>Or via .NET CLI:</p>
+                    <pre><code>dotnet add package ExIgniter.ObjectMapper</code></pre>
+                </article>
+                
+                <article id="basic-usage">
+                    <h3>Basic Usage</h3>
+                    <p>Simple object mapping:</p>
+                    <pre><code>// Basic mapping
+var userDto = userEntity.MapTo&lt;UserDto&gt;();
+
+// Collection mapping
+List&lt;UserDto&gt; dtos = entities.MapAllTo&lt;UserDto&gt;().ToList();</code></pre>
+                </article>
+            </section>
+
+            <section id="api-reference">
+                <h2>API Reference</h2>
+                
+                <article id="core-methods">
+                    <h3>Core Methods</h3>
+                    
+                    <div class="method-signature">
+                        <code>TResult MapTo&lt;TResult&gt;()</code>
+                    </div>
+                    <p>Maps the source object to a new instance of the specified type.</p>
+                    <p><strong>Parameters:</strong> None</p>
+                    <p><strong>Returns:</strong> New instance of TResult</p>
+                    <pre><code>var dto = entity.MapTo&lt;UserDto&gt;();</code></pre>
+                    
+                    <div class="method-signature">
+                        <code>TResult MapTo&lt;TResult&gt;(MapConfig config)</code>
+                    </div>
+                    <p>Maps with custom configuration.</p>
+                    <p><strong>Parameters:</strong></p>
+                    <ul>
+                        <li><code>config</code>: MapConfig instance</li>
+                    </ul>
+                    <pre><code>var config = new MapConfig()
+    .Ignore(x => x.PasswordHash);
+    
+var dto = entity.MapTo&lt;UserDto&gt;(config);</code></pre>
+                </article>
+                
+                <article id="mapconfig">
+                    <h3>MapConfig Class</h3>
+                    <p>Configuration options for mapping behavior.</p>
+                    
+                    <h4>Methods:</h4>
+                    <table>
+                        <tr>
+                            <th>Method</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td><code>Ignore&lt;T&gt;(Expression&lt;Func&lt;T, object&gt;&gt; expr)</code></td>
+                            <td>Ignores specified property</td>
+                        </tr>
+                        <tr>
+                            <td><code>MapAs&lt;TSource, TDest&gt;(Func&lt;TSource, TDest&gt; converter)</code></td>
+                            <td>Custom type converter</td>
+                        </tr>
+                        <tr>
+                            <td><code>WithNullHandling(NullHandlingStrategy strategy)</code></td>
+                            <td>Sets null handling behavior</td>
+                        </tr>
+                    </table>
+                </article>
+                
+                <article id="attributes">
+                    <h3>Mapping Attributes</h3>
+                    <table>
+                        <tr>
+                            <th>Attribute</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td><code>[MapIgnore]</code></td>
+                            <td>Excludes property from mapping</td>
+                        </tr>
+                        <tr>
+                            <td><code>[MapAs("PropertyName")]</code></td>
+                            <td>Maps to different target property</td>
+                        </tr>
+                        <tr>
+                            <td><code>[MapConstructor]</code></td>
+                            <td>Marks constructor for auto-mapping</td>
+                        </tr>
+                    </table>
+                </article>
+            </section>
+
+            <section id="migration-guide">
+                <h2>Migration Guide</h2>
+                
+                <article id="breaking-changes">
+                    <h3>Breaking Changes</h3>
+                    <div class="warning">
+                        <p><strong>Note:</strong> While v2.0 maintains backward compatibility, these changes might affect edge cases.</p>
+                    </div>
+                    <ul>
+                        <li><code>Map&lt;T&gt;()</code> is now <code>MapTo&lt;T&gt;()</code> (old version still supported)</li>
+                        <li>Default null handling now throws exceptions (was silent in v1.x)</li>
+                        <li>Collection mapping now returns <code>IEnumerable&lt;T&gt;</code> instead of concrete List</li>
+                    </ul>
+                </article>
+                
+                <article id="deprecated-features">
+                    <h3>Deprecated Features</h3>
+                    <p>The following v1.x features are deprecated but still functional:</p>
+                    <ul>
+                        <li><code>FasterMap()</code> - Use <code>MapTo()</code> with performance config</li>
+                        <li><code>ComplexMap()</code> - Use <code>MapTo()</code> with deep mapping config</li>
+                        <li>String-based property exclusion - Use lambda expressions</li>
+                    </ul>
+                </article>
+            </section>
+
+            <section id="advanced-usage">
+                <h2>Advanced Usage</h2>
+                
+                <article id="performance-tuning">
+                    <h3>Performance Tuning</h3>
+                    <p>For maximum performance:</p>
+                    <pre><code>// Reuse config instances
+var config = new MapConfig()
+    .WithNullHandling(NullHandlingStrategy.UseDefaultValue)
+    .CacheMappings(); // Enable type cache
+
+// For hot paths
+var fastMapper = config.CreateMapper&lt;Source, Dest&gt;();
+var result = fastMapper.Map(source);</code></pre>
+                </article>
+                
+                <article id="custom-mappings">
+                    <h3>Custom Mappings</h3>
+                    <p>Implement complex transformations:</p>
+                    <pre><code>var config = new MapConfig()
+    .MapAs&lt;DateTime, string&gt;(d => d.ToString("yyyy-MM-dd"))
+    .MapAs&lt;Address, string&gt;(a => $"{a.Street}, {a.City}");
+
+var result = source.MapTo&lt;Destination&gt;(config);</code></pre>
+                </article>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
